@@ -22,82 +22,97 @@
 import random
 import string
 
-class GPNode:
+"""
+Tree node
+"""
+class TreeNode:
     def __init__(self):
         self.children = []
         self.parent = self
-        self.depth = None
-        self.height = None
 
-    # Returns height of subtree for which this node is root
-    def getHeight(self):
-        # If node is terminal its height is zero by definition
+    """
+    Returns height of tree for which this node is root
+    """
+    def height(self):
         if(not self.children):
             return 0
         
         # If node is internal its height is the maximum height
         # among its subtrees plus one
-        return max([subtree.getHeight()
+        return max([subtree.height()
                     for subtree in self.children]) + 1
 
-    # Returns the depth of this node
-    def getDepth(self):
+    """
+    Returns the depth of this node
+    """
+    def depth(self):
         depth = 0
-        x = self
+        node = self
 
-        while(not x.parent is x):
-            x = x.parent
+        while(not node.parent is node):
+            node = node.parent
             depth = depth + 1
 
         return depth
-        
-    # Pre-order traversal for the tree for which this node is root
+    
+    """
+    Pre-order traversal for the tree for which this node is root
+    """
     def preTraversal(self):
         order = [self]
 
         for child in self.children:
             order += child.preTraversal()
 
-        if self.children:
-            self.height = max([child.height for child in self.children]) + 1
-        else:
-            self.height = 0
-
         return order
 
-class GPInternalNode(GPNode):
+"""
+Function node
+"""
+class FunctionNode(TreeNode):
     def __init__(self, function, children):
-        GPNode.__init__(self)
+        TreeNode.__init__(self)
         self.function = function
         self.setChildren(children)
 
-    # The string representation of the internal node is
-    # a python expression ready to be evaluated
+    """
+    String representation of the internal node is a python expression
+    ready to be evaluated
+    """
     def __str__(self):
-        name = self.function[0]
-        return (name + "(%s)") % string.join([str(child)
-                                              for child in self.children], ",")
+        function_name = self.function[0]
+        arguments = [str(child) for child in self.children]
 
+        return (function_name + "(%s)") % string.join(arguments, ",")
+
+    """
+    Set children of this node
+    """
     def setChildren(self, children):
         self.children = children
 
-        # Keep a reference to the container structure of each node
+        # Keep a reference to parent
         for child in self.children:
             child.parent = self
 
-class GPTerminalNode(GPNode):
+"""
+Terminal node
+"""
+class TerminalNode(TreeNode):
     def __init__(self, value):
-        GPNode.__init__(self)
+        TreeNode.__init__(self)
         self.value = value
 
-    # The terminal node value should be a string already
+    """
+    The terminal node value should be a string already
+    """
     def __str__(self):
         return self.value
 
     def evaluate(self):
         return self.value
 
-class GPTreeInitParameters:
+class TreeInitParameters:
     def __init__(self, terminal_set, internal_set,
                  p_rand = 0.0, rand_bounds = (-1.0, 1.0)):
         self.terminal_set = terminal_set # List of terminal symbols
@@ -105,7 +120,10 @@ class GPTreeInitParameters:
         self.p_rand = p_rand             # Prob of node to be random number
         self.rand_bounds = rand_bounds   # Bounds for those random numbers
 
-class GPTree:
+"""
+Syntactic tree
+"""
+class Tree:
     def __init__(self, parameters, max_height=30, init_depth=-1, p_full=0.0):
         self.root = None
         self.parameters = parameters
@@ -116,30 +134,36 @@ class GPTree:
         if init_depth >= 0:
             self.root = self.randomInit(init_depth, p_full).root
 
-    def getExpression(self):
+    def __str__(self):
         return str(self.root)
 
-    # Compiling the expression before evaluation over the data set
-    # for efficiency
+    """
+    Compiling the expression before evaluation over the data set
+    for efficiency
+    """
     def getCompiledCode(self):
         try:
-            return compile(self.getExpression(), '<string>', 'eval')
+            return compile(str(self), '<string>', 'eval')
         except MemoryError:
-            print "Warning: bloated tree. Depth %d" % self.getHeight()
+            print "Warning: bloated tree. Depth %d" % self.height()
             return str(float('inf'))
 
-    # Returns depth of the tree
-    def getHeight(self):
-        return self.root.getHeight()
+    """
+    Returns depth of the tree
+    """
+    def height(self):
+        return self.root.height()
 
-    # Returns a random tree with a maximum depth. It uses the same
-    # set of internal and terminal symbols of this tree.
-    # The initialization method is controlled through the p_full
-    # parameter. If it is one then a complete trees will always
-    # be created. Other values may allow non-complete trees. Trees
-    # will never exceed the maximum height
+    """
+    Returns a random tree with a maximum depth. It uses the same
+    set of internal and terminal symbols of this tree.
+    The initialization method is controlled through the p_full
+    parameter. If it is one then a complete trees will always
+    be created. Other values may allow non-complete trees. Trees
+    will never exceed the maximum height
+    """
     def randomInit(self, max_height, p_full=1.0):
-        tree = GPTree(self.parameters)
+        tree = Tree(self.parameters)
 
         # This function os meant to be called from outside the
         # class to generate random trees with the same properties
@@ -158,7 +182,7 @@ class GPTree:
                 # Randomly pick the terminal symbol
                 terminal = random.choice(terminal_set)
             
-            tree.root = GPTerminalNode(str(terminal))
+            tree.root = TerminalNode(str(terminal))
         else:
             # Randomly pick the function
             function = random.choice(self.parameters.internal_set)
@@ -171,24 +195,26 @@ class GPTree:
             children = [self.randomInit(next_heights[i], p_full).root
                         for i in range(len(next_heights))]
 
-            tree.root = GPInternalNode(function, children)
+            tree.root = FunctionNode(function, children)
 
         return tree
 
-    # Picks a random node (uniformly) which is root of a subtree
-    # with depth not larger than max_depth or height larger
-    # than max_height
+    """
+    Picks a random node (uniformly) which is root of a subtree
+    with depth not larger than max_depth or height larger
+    than max_height
+    """
     def randomNode(self, max_depth=30, max_height=30):
         # Get list of nodes with labeled heights
         nodes = self.root.preTraversal()
         # Pick nodes complying with depth restriction
         valid_nodes = [node for node in nodes
-                       if (node.getDepth() <= max_depth and \
-                               node.height <= max_height)]
+                       if (node.depth() <= max_depth and \
+                               node.height() <= max_height)]
 
         try:
             return random.choice(valid_nodes)
-        except Exception:
+        except IndexError:
             print max_depth
             print len(nodes)
             print len(valid_nodes)

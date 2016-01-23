@@ -21,9 +21,9 @@
 
 import random
 
-import gp.tree
-import gp.operator
-import gp.protected
+import epro.gp.tree
+import epro.gp.operator
+import epro.gp.protected
 
 # Default parameter values
 MAX_DEPTH = 30
@@ -50,8 +50,8 @@ class GPPopulation:
         # nodes of a full tree
         for i in range(size):
             grow = 1.0 if random.random() < 0.5 else p_grow
-            tree = gp.tree.GPTree(self.tree_parameters, max_depth,
-                                  init_depth, grow)
+            tree = epro.gp.tree.Tree(self.tree_parameters, max_depth,
+                                     init_depth, grow)
             self.individuals += [tree]
 
 class GPSettings:
@@ -108,19 +108,16 @@ class GPEvaluator:
         return self.kTournament(individuals, 2)
 
     def kTournament(self, individuals, k):
-        # Pick k contestants and find the best fitted
-        tournament = [random.choice(individuals) for i in range(k)]
-        tournament.sort(key = lambda x: x.fitness)
+        return max([random.choice(individuals) for i in range(k)])
 
-        return tournament[0]
-
-def evolution(population, evaluator, generations, verbose=True):
+def evolution(population, genetic_operator_set, evaluator,
+              generations, verbose=True):
     # A generational model is used for survival selection
     # This list keeps the best individual observed in each generation
     best_record = []
     
     for i in range(generations):
-        new_population = []
+        new_generation = []
 
         evaluator.rank(population)
 
@@ -130,30 +127,20 @@ def evolution(population, evaluator, generations, verbose=True):
             best_record += [best]
             print "Training error: " + str(best.fitness)
             print "Testing error: " + str(evaluator.testingError(best))
-            print "Function: " + best.getExpression()
-            print "Depth: " + str(best.root.getHeight())
+            print "Function: " + str(best)
+            print "Depth: " + str(best.root.height())
             print "--------------------------------------"
 
-        while(len(new_population) < len(population.individuals)):
-            # Select genetic operator
-            if random.random() < 0.05:
-                # Select one individual
-                tree = evaluator.select(population)
-
-                # Mutate it and add to intermediate pool
-                new_population += [gp.operator.GPOperator.mutation(tree)]
-            else:
-                # Select individuals
-                tree1 = evaluator.select(population)
-                tree2 = evaluator.select(population)
-
-                # Cross them and add offsprings to intermediate pool
-                # The tuple of offsprings is converted to a list
-                new_population += list(
-                    gp.operator.GPOperator.crossover(tree1, tree2))
+        while(len(new_generation) < len(population.individuals)):
+            # Select genetic operator, as well as program(s) to apply
+            # the operator, operate, and add to new generation
+            genetic_operator = genetic_operator_set.select()
+            selected_programs = [evaluator.select(population)
+                                 for i in range(genetic_operator.arity)]
+            new_generation += list(genetic_operator.apply(*selected_programs))
 
         # New generation
-        population.individuals = new_population
+        population.individuals = new_generation
     
     best_record.sort(key = lambda x: evaluator.evaluate(x))
 

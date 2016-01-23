@@ -25,10 +25,11 @@ import random
 
 import settings
 
-import gp.core
-import gp.protected
-import gp.tree
-import gp.util
+import epro.gp.core
+import epro.gp.protected
+import epro.gp.tree
+import epro.gp.util
+import epro.gp.operator as gpop
 
 # This is the fitness function to be used to drive
 # evolution. It is the average of the sum of squared prediction
@@ -39,7 +40,7 @@ def fitness_function(tree, data_set):
     tree_code = tree.getCompiledCode()
     sse = 0
 
-    safe_function = gp.protected.GPFunction
+    safe_function = epro.gp.protected.GPFunction
 
     locals = {'add': safe_function.add,
               'sub': safe_function.sub,
@@ -69,7 +70,7 @@ def fitness_function(tree, data_set):
         except Exception:
             return float('inf')
 
-    return sse
+    return 1.0 / sse
 
 def usage():
     print "Usage: regression.py training_set testing_set seed"
@@ -79,29 +80,36 @@ if __name__ == '__main__':
         usage()
         sys.exit(1)
 
-    training_set = gp.util.CSVDataSet(sys.argv[1])
-    test_set = gp.util.CSVDataSet(sys.argv[2])
+    training_set = epro.gp.util.CSVDataSet(sys.argv[1])
+    test_set = epro.gp.util.CSVDataSet(sys.argv[2])
 
     random.seed(int(sys.argv[3])) # 23 very good
+
+    genetic_operator_set = gpop.GeneticOperatorSet(
+        [gpop.GeneticReproduction(),
+         gpop.GeneticMutation(),
+         gpop.GeneticCrossover()],
+        [20, 35, 45])
 
     terminal_set = ['x', 'y', 'z']
     internal_set = [('add', 2), ('sub', 2), ('mul', 2), ('div', 2),
                     ('pow', 2), ('sqrt',1), ('abs', 1), ('log', 1),
                     ('log10', 1), ('sin', 1), ('cos', 1), ('tan', 1),
                     ('max', 2), ('min', 2)]
-    parameters = gp.tree.GPTreeInitParameters(terminal_set,
-                                              internal_set, 0.05)
+    parameters = epro.gp.tree.TreeInitParameters(terminal_set,
+                                                 internal_set, 0.05)
 
     print "Creating population..................."
-    population = gp.core.GPPopulation(size=settings.POPULATION_SIZE,
-                                      tree_parameters=parameters,
-                                      max_depth=settings.MAX_HEIGHT,
-                                      init_depth=settings.INITIAL_DEPTH)
-    evaluator = gp.core.GPEvaluator(fitness_function, training_set, test_set)
+    population = epro.gp.core.GPPopulation(size=settings.POPULATION_SIZE,
+                                           tree_parameters=parameters,
+                                           max_depth=settings.MAX_HEIGHT,
+                                           init_depth=settings.INITIAL_DEPTH)
+    evaluator = epro.gp.core.GPEvaluator(fitness_function,
+                                         training_set, test_set)
 
     print "Evolving.............................."
-    best = gp.core.evolution(population, evaluator,
-                             settings.GENERATIONS)
+    best = epro.gp.core.evolution(population, genetic_operator_set,
+                                  evaluator, settings.GENERATIONS)
 
     tr_size = len(training_set.data)
     te_size = len(test_set.data)
@@ -109,4 +117,4 @@ if __name__ == '__main__':
     print "+++Best individual+++"
     print "\tTraining error: " + str(evaluator.evaluate(best) / tr_size)
     print "\tTesting error: " + str(evaluator.testingError(best) / te_size)
-    print "\tLearnt function: " + best.getExpression()
+    print "\tLearnt function: " + str(best)
